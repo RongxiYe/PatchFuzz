@@ -172,7 +172,7 @@ cd /sys/devices/system/cpu
 echo performance | tee cpu*/cpufreq/scaling_governor
 ```
 
-
+NOTE3：\<your afl workdir\> should be a folder that does not exist currently.
 
 
 
