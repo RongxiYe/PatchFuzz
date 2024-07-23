@@ -1,7 +1,9 @@
 # PatchFuzz
 The code for our paper: "PatchFuzz: An Efficient Way to Incorporate Patching with Hybrid Fuzzing".
 
-If you want to build it for other architectures, see step 4 in the part "Build PatchFuzz" below. 
+It is now available for some Linux architecture. See the [afl-other-arch](https://github.com/shellphish/afl-other-arch) repository for specific supported architectures.
+
+This project is built on [afl-other-arch](https://github.com/shellphish/afl-other-arch), [QSYM](https://github.com/sslab-gatech/qsym) and [Ghidra](https://github.com/NationalSecurityAgency/ghidra).
 
 
 
@@ -19,7 +21,7 @@ First, make sure that you have installed docker. We do not test our code ouside 
 git clone https://github.com/sslab-gatech/qsym.git
 ```
 
-2. build qsym docker as guided in https://github.com/sslab-gatech/qsym/tree/master
+2. build qsym docker as guided in [QSYM](https://github.com/sslab-gatech/qsym)
 
 ```
 echo 0|sudo tee /proc/sys/kernel/yama/ptrace_scope
@@ -82,7 +84,7 @@ tar -xf qemu-2.10.0.tar
 
 ### Build Ghidra
 
-1. download ghidra release(we use 10.0.4) in https://github.com/NationalSecurityAgency/ghidra/releases/tag/Ghidra_10.4_build  and unzip it inside docker.
+1. download ghidra release(we use 10.0.4) in [ghidra build](https://github.com/NationalSecurityAgency/ghidra/releases/tag/Ghidra_10.4_build)  and unzip it inside docker.
 2. set env "GHIDRA_INSTALL_DIR" as where you put ghidra build.
 
 ```
@@ -98,7 +100,7 @@ apt update
 apt install openjdk-17-jdk
 ```
 
-4. update python3 to 3.8 or later
+4. update python3 to 3.8 or later(Do this after you installed java!!!)
 
 ```
 add-apt-repository ppa:deadsnakes/ppa
@@ -107,7 +109,11 @@ update-alternatives --install /usr/bin/python3 python3 <path to your newly added
 
 #change python:
 update-alternatives --config python3
+```
 
+​      If you encounter a problem that "lsb_release -a" does not work, try:
+
+```
 #add lsb_release
 ln -s /usr/share/pyshared/lsb_release.py <path to lib of your newly added python>/lsb_release.py
 ```
@@ -209,4 +215,100 @@ hangs: same as crashes dir, only for hangs
 
 ## Analysis scripts
 
-add soon....
+We develop a set of analysis scripts to help manually screen false positives.
+
+### test_crash.sh and test_with_gdb
+
+1. **build shellphish-qemu-linux** 
+
+```
+cd /patchfuzz/scripts/shellphish-qemu-linux 
+make clean
+./buildme.sh
+```
+
+You can also modify your wanted architecture in buildme.sh.
+
+```
+../configure --target-list=i386-linux-user,x86_64-linux-user,<other arch>
+```
+
+If it is successfully build, you can find the "qemu-xxx" of the corresponding architecture under "build/".
+
+2. Make sure that you have installed **gdb or gdb-multiarch** for other archs.
+
+3. **test the results**: modify test_crash.sh according to the tested program's need. You need two shell windows. One for qemu, and another for gdb.
+
+If you want to test the result of a binary that accepts inputs using IO stream and without arguments:
+
+```
+#modify test_crash.sh
+cat $file |  timeout -k 3 3 /patchfuzz/scripts/shellphish-qemu-linux/build/<arch>-linux-user/qemu-<arch> -P $file.patch -g 12345 $1
+```
+
+```
+#run test_crash.sh
+/patchfuzz/scripts/test_crash.sh <path to your tested binary> <path to your afl workdir> 
+```
+
+The other window:
+
+```
+#modify test_with_gdb.py to your ip
+target remote <ip>:12345 
+```
+
+run gdb:
+
+```
+gdb <path to your tested binary>
+
+#after you enter gdb
+#set architecture <arch> (if you use gdb-multiarch)
+source /patchfuzz/scripts/test_with_gdb.py
+# enter <path to your afl workdir> as guided
+```
+
+Remember to start gdb window FIRST and enter \<path to your afl workdir\>. Then you need to start test_crash.sh immediately.
+
+
+
+For test_crash.sh: 
+
+If the binary accepts inputs using IO stream and WITH arguments:
+
+```
+cat $file |  timeout -k 3 3 /patchfuzz/scripts/shellphish-qemu-linux/build/<arch>-linux-user/qemu-<arch> -P $file.patch -g 12345 $1 <your arguments>
+```
+
+For example, 
+
+```
+cat $file |  timeout -k 3 3 /patchfuzz/scripts/shellphish-qemu-linux/build/<arch>-linux-user/qemu-<arch> -P $file.patch -g 12345 $1 -d
+```
+
+If it accepts a file input without arguments, then:
+
+```
+timeout -k 3 3 /patchfuzz/scripts/shellphish-qemu-linux/build/<arch>-linux-user/qemu-<arch> -P $file.patch -g 12345 $1 $file
+```
+
+If it accepts a file input with arguments, then:
+
+``` 
+timeout -k 3 3 /patchfuzz/scripts/shellphish-qemu-linux/build/<arch>-linux-user/qemu-<arch> -P $file.patch -g 12345 $1 -d $file
+```
+
+
+
+4. **result interpretation**
+
+data.xlsx: Each column represents a different unique crash. The first three rows represent the backtrace, register information, and the total number of identical crashes recorded during the crash. All the rows below are the specific crash numbers under those folders, providing reference for later analysis.
+
+hijacked.txt: number of control flow hijacking
+
+
+
+### advanced_test_one.sh
+
+It is used to test a specific seed separately. You can choose to remove some patch points and test on the target program. 
