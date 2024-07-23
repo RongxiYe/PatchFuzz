@@ -57,11 +57,11 @@ git clone https://github.com/RongxiYe/PatchFuzz.git
 2. or, if the network does not work well, clone the repository outside the docker and copy it into the container（need root）
 
 ```
-//clone ouside docker
+#clone ouside docker
 docker cp PatchFuzz/ <your_container_id>:/patchfuzz
 ```
 
-3. build patchfuzz-afl
+3. build patchfuzz-AFL
 
 ```
 cd /patchfuzz
